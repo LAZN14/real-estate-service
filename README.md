@@ -11,6 +11,28 @@
 └── docker-compose.yml
 ```
 
+## Быстрый старт
+
+### Backend (Docker)
+
+```powershell
+docker compose up -d --build
+```
+
+Публичный порт: **8000** (только API). RabbitMQ, Selenium Grid и consumer доступны только внутри docker-сети.
+
+### Frontend
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Приложение: http://localhost:5173
+
+---
+
 ## Часть 1. Frontend
 
 ### Привязка полей к Formik
@@ -48,17 +70,20 @@ Yup.number().moreThanSumOfFields(
 )
 ```
 
-### Запуск frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Приложение: http://localhost:5173
+---
 
 ## Часть 2. Backend + инфраструктура
+
+### Как это работает
+
+```
+Клиент  →  POST /browse  →  FastAPI  →  RabbitMQ  →  Consumer  →  Selenium Grid  →  LOG (HTML)
+```
+
+1. API принимает URL и кладёт задачу в очередь `browse_tasks`
+2. Consumer забирает задачу из RabbitMQ
+3. Selenium Grid открывает страницу в headless Chrome
+4. HTML страницы выводится в лог consumer
 
 ### Эндпоинт
 
@@ -73,15 +98,24 @@ Content-Type: application/json
 
 Ответ `202 Accepted` — задача поставлена в очередь RabbitMQ.
 
-### Docker Compose
+### Проверка (PowerShell)
 
-```bash
-docker compose up --build
+```powershell
+# Healthcheck
+Invoke-RestMethod http://localhost:8000/health
+
+# Отправить задачу на сканирование
+Invoke-RestMethod `
+  -Uri http://localhost:8000/browse `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body '{"url":"https://www.avito.ru/moskva/kvartiry/test"}'
+
+# Посмотреть HTML в логах
+docker compose logs -f consumer
 ```
 
-Публичный порт: **8000** (только API). RabbitMQ, Selenium Grid и consumer доступны только внутри docker-сети.
-
-### Проверка
+### Проверка (bash / curl)
 
 ```bash
 curl http://localhost:8000/health
@@ -89,13 +123,11 @@ curl http://localhost:8000/health
 curl -X POST http://localhost:8000/browse \
   -H "Content-Type: application/json" \
   -d '{"url":"https://www.avito.ru/moskva/kvartiry/test"}'
-```
 
-HTML страницы появится в логах consumer:
-
-```bash
 docker compose logs -f consumer
 ```
+
+---
 
 ## Технологии
 
